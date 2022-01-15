@@ -21,6 +21,10 @@ module maindec(input    [5:0]   op,
             6'b000010: controls <= 10'b0000001000; //j
             6'b001101: controls <= 10'b1010000011; //ADDED THIS FOR ORI
             6'b000101: controls <= 10'b0001000101; //ADDED THIS FOR BNE
+            6'b001110: controls <= //XORI
+            6'b001010: controls <= //SLTI
+            6'b001111: controls <= //LUI
+            6'b000011: controls <= //JAL
             default:   controls <= 10'bxxxxxxxxxx; //illegal instruction
         endcase
     end
