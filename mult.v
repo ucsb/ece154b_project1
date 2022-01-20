@@ -17,105 +17,96 @@ module multserial(input wire CLK,
     reg prodv;
   	assign PRODV = prodv;
   	assign PROD = P;
-    always @(posedge CLK) begin
-  		A <= SRCA;
-  		B <= SRCB;
-        case (state)
-            0: begin //MST was received previous cycle, load registers and go to multiply state (1)
-                P <= 64'b0;
-                prodv <= 1'b0;
-              	count <= 0;
-              	if(B < A)begin
-              		temp_b <= B;
-                  	T[31:0] <= A;
-                  	if(msgn) begin
-                      if(A[31] == 1'b1) begin
-                        T[63:32] <= 32'b11111111111111111111111111111111;
-                      end else begin
-                        T[63:32] <= 32'b0;
+  	always @(posedge CLK or RST) begin
+      	if(RST) begin
+          temp_b <= 0;
+          msgn <= 0;
+          P <= 0;
+          T <= 0;
+          prodv <= 0;
+          A <= 0;
+          B <= 0;
+          state <= 3;
+      	end else begin
+          case (state)
+              0: begin //MST was received previous cycle, load registers and go to multiply state (1)
+                  P <= 64'b0;
+                  prodv <= 1'b0;
+                  count <= 0;
+                  if(B < A)begin
+                      temp_b <= B;
+                      T[31:0] <= A;
+                      if(msgn) begin
+                        if(A[31] == 1'b1) begin
+                          T[63:32] <= 32'b11111111111111111111111111111111;
+                        end else begin
+                          T[63:32] <= 32'b0;
+                        end
                       end
-                    end
-                end else begin
-                  	temp_b <= A;
-                  	T[31:0] <= B;
-                  	if(msgn) begin
-                      if(B[31] == 1'b1) begin
-                        T[63:32] <= 32'b11111111111111111111111111111111;
-                      end else begin
-                        T[63:32] <= 32'b0;
+                  end else begin
+                      temp_b <= A;
+                      T[31:0] <= B;
+                      if(msgn) begin
+                        if(B[31] == 1'b1) begin
+                          T[63:32] <= 32'b11111111111111111111111111111111;
+                        end else begin
+                          T[63:32] <= 32'b0;
+                        end
                       end
-                    end
-                end
-                state <= 1;
-            end
-            1: begin //calculating product
-                if(RST) begin //go to reset state
-                    state <= 4;
-                end else begin
-                  	if(temp_b[0] == 1'b1) begin
-                      if(count == 31 && msgn) begin //if a signed mult, then subtract last row of multiplication
-                     		P <= P - T;
-                      end else begin
-                        P <= P + T;
-                      end
+                  end
+                  state <= 1;
+              end
+              1: begin //calculating product
+                    if(temp_b[0] == 1'b1) begin
+                        if(count == 31 && msgn) begin //if a signed mult, then subtract last row of multiplication
+                              P <= P - T;
+                        end else begin
+                          P <= P + T;
+                        end
                     end else begin //value of temp_b[0] is 0 so no multiplication for this "level"
-                        P <= P;
+                          P <= P;
                     end
                     if(temp_b == 0) begin //finished shifting through B, i.e. our product is finished being calculated
-                        state <= 2;
+                          state <= 2;
                     end else begin //not done multiplying
-                        temp_b <= temp_b>>1; //shift right by 1 to use next b[0] in next multiplicative cycle 
-                        T <= T<<1; //shift left by 1 so that when adding to P, we accout for our b[0] shift
-                      	count <= count + 1;
-                        state <= 1;
+                          temp_b <= temp_b>>1; //shift right by 1 to use next b[0] in next multiplicative cycle 
+                          T <= T<<1; //shift left by 1 so that when adding to P, we accout for our b[0] shift
+                          count <= count + 1;
+                          state <= 1;
                     end
-                end
-            end
-            2: begin //output state
-                prodv <= 1'b1;
-                if(RST) begin //reset signal
-                    state <= 4;
-                end else if (MST) begin //next cycle begin multiply (load regs)
-                    state <= 0; 
-                  	msgn <= MSGN;
-                end else begin //default state
-                    state <= 3;
-                end
-            end
-            3: begin //default, do nothing state
-                if(RST) begin  //reset state sends us to 4
-                    state <= 4;
-                end else if(MST) begin //next cycle begin multiply
-                    state <= 0;
-                  	msgn <= MSGN;
-                end else begin 
-                    state <= 3;
-                end
-            end
-            4: begin //reset state
-                temp_b <= 0;
-                msgn <= 0;
-                P <= 0;
-                T <= 0;
-                prodv <= 0;
-                if(MST) begin
-                    state <= 0;
-                  	msgn <= MSGN;
-                end
-                else begin
-                    state <= 3;
-                end
-            end
-            default: begin
-              	if(RST) begin  //reset state sends us to 4
-                    state <= 4;
-                end else if(MST) begin //next cycle begin multiply
-                    state <= 0;
-                  	msgn <= MSGN;
-                end else begin 
-                    state <= 3;
-                end
-            end
+              end
+              2: begin //output state
+                  prodv <= 1'b1;
+                  if (MST) begin //next cycle begin multiply (load regs)
+                      state <= 0; 
+                      msgn <= MSGN;
+                      A <= SRCA;
+                      B <= SRCB;
+                  end else begin //default state
+                      state <= 3;
+                  end
+              end
+              3: begin //default, do nothing state
+                  if(MST) begin //next cycle begin multiply
+                      state <= 0;
+                      msgn <= MSGN;
+                      A <= SRCA;
+                      B <= SRCB;
+                  end else begin 
+                      state <= 3;
+                  end
+              end
+              default: begin
+                  if(MST) begin //next cycle begin multiply
+                      state <= 0;
+                      msgn <= MSGN;
+                      A <= SRCA;
+                      B <= SRCB;
+                  end else begin 
+                      state <= 3;
+                  end
+              end
         endcase
+      end
     end
 endmodule
